@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     TESTS_PATH: Path = TESTS_DIR
 
     # LLM Settings
-    DEFAULT_LLM_PROVIDER: str = "mock"  # openai, gemini, anthropic, mock
+    DEFAULT_LLM_PROVIDER: str = "openai"  # openai, gemini, anthropic, mock
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-4o"

@@ -55,6 +55,10 @@ Detect if there is an anomaly or issue:
 - MISSING_FUNCTIONALITY: Documented requirement that is missing from UI.
 - UX_ISSUE: Confusing state, button enabled when invalid, layout breakage.
 
+FALSE POSITIVE PREVENTION:
+- Do not flag a navigation bug on an interim click if direct route navigation is in progress or if the page is simply rendering.
+- Only flag a bug if an action results in an unhandled crash, broken UI element, HTTP 500/critical error, or permanent failure to perform requested operation.
+
 Respond ONLY with valid JSON in this exact structure:
 {
   "is_finding": true | false,

@@ -13,47 +13,57 @@ class TestPlanner:
         requirements_text: str,
         discovered_areas: List[Dict[str, Any]],
         dom_snapshot: str,
+        target_routes: List[Dict[str, Any]] = None,
+        base_url: str = "",
         max_scenarios: int = 15
     ) -> List[Dict[str, Any]]:
         """
-        Creates prioritized test scenarios strictly focused on the user's mission directive.
+        Creates prioritized test scenarios strictly focused on the user's mission directive
+        with explicit route path schemes.
         """
         system_prompt = f"""ROLE: PLANNER_ROLE
 You are a Principal QA Automation and Exploratory Testing Architect.
 Your task is to create a focused, actionable test plan containing 3 to {max_scenarios} prioritized test scenarios.
 
 CRITICAL DIRECTIVES:
-1. THE USER MISSION IS YOUR SUPREME GOAL. 
-   - If the user asked to test a specific page, tab, or feature (e.g. 'templates', 'login', 'create form'), ALL scenarios MUST directly focus on that specific target!
-   - Do NOT generate unrelated scenarios for other pages if the user gave a specific mission.
-2. Structure the scenarios logically to accomplish the mission:
-   - Scenario 1: Navigate to the target area/page specified in the mission and verify initial render.
-   - Scenario 2: Test primary functionality, buttons, inputs, and happy paths within the target area.
-   - Scenario 3: Test negative cases, validation, edge cases, or error handling within the target area.
-   - Scenario 4+: Test persistence, state changes, and interactions relevant to the mission.
-3. Assign priorities (HIGH, MEDIUM, LOW).
+1. ROUTE SCHEME & TARGET PATH FIRST:
+   - Identify the exact target URL path corresponding to the User Mission (e.g. mission mentions 'templates' -> target path is '/templates', direct URL is '{base_url.rstrip("/")}/templates').
+   - Scenario 1 MUST BE: Navigate to target page (via header link/button or direct URL navigation) and verify complete page render.
+2. SCENARIO PROGRESSION ON TARGET PAGE:
+   - Scenario 2: Test primary interactions, template cards, forms, buttons, and filters on the target page.
+   - Scenario 3: Test edge cases, modal dialogs, search queries, or negative states on the target page.
+   - Scenario 4: Test state persistence and responsiveness on the target page.
+3. STRICT MISSION FOCUS:
+   - Do NOT wander off to unrelated pages (e.g. do not test pricing or feed if the user asked for templates).
 
 Respond ONLY with valid JSON in this exact structure:
 {{
   "scenarios": [
     {{
       "title": "Clear concise scenario title",
-      "description": "What to do and what to verify (step-by-step)",
-      "area": "Target area name",
+      "description": "What to do and what to verify. Include specific target URL/path and elements to inspect.",
+      "area": "Target area name (e.g. Templates)",
       "priority": "HIGH" // or "MEDIUM" or "LOW"
     }}
   ]
 }}
 """
         areas_str = json.dumps(discovered_areas, indent=2)
+        routes_str = json.dumps(target_routes or [], indent=2)
+
         user_prompt = f"""PRIMARY USER MISSION DIRECTIVE:
 {mission}
 
-Requirements / PRD:
-{requirements_text if requirements_text else 'Standard web application testing'}
+Base URL: {base_url}
+
+Identified Target Routes & Paths:
+{routes_str}
 
 Discovered Application Areas:
 {areas_str}
+
+Requirements / PRD:
+{requirements_text if requirements_text else 'Standard web application testing'}
 
 Current DOM Snapshot:
 {dom_snapshot}
@@ -64,18 +74,26 @@ Current DOM Snapshot:
             if isinstance(scenarios, list) and len(scenarios) > 0:
                 return scenarios[:max_scenarios]
 
-        # Fallback plan tailored to mission
+        # Inferred route fallback
+        clean_base = base_url.rstrip("/")
+        target_path = "/templates" if "template" in (mission or "").lower() else "/"
         return [
             {
-                "title": f"Navigate and Verify {mission[:40]}",
-                "description": f"Open target section and verify UI elements for: {mission}",
-                "area": "Target Module",
+                "title": f"Navigate to {target_path} and Verify Page Render",
+                "description": f"Open {clean_base}{target_path} (via nav link or direct URL) and verify all main page components render.",
+                "area": "Templates" if "template" in target_path else "Main Navigation",
                 "priority": "HIGH"
             },
             {
-                "title": f"Interactive Functionality Testing for {mission[:40]}",
-                "description": "Test primary user actions, buttons, and state updates.",
-                "area": "Target Module",
+                "title": f"Test Core Functionality on {target_path}",
+                "description": "Interact with available cards, buttons, search inputs, and filters.",
+                "area": "Templates" if "template" in target_path else "Interactive",
                 "priority": "HIGH"
+            },
+            {
+                "title": f"Verify State Persistence and Actions on {target_path}",
+                "description": "Test clicking actions, dialogs, and verify that no error states appear.",
+                "area": "Templates" if "template" in target_path else "Validation",
+                "priority": "MEDIUM"
             }
         ]

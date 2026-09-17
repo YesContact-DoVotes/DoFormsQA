@@ -167,6 +167,8 @@ class QAOrchestrator:
                     requirements_text=project_obj.requirements_text or "",
                     discovered_areas=discovered_areas,
                     dom_snapshot=initial_state.get("formatted_dom", ""),
+                    target_routes=discovery_data.get("target_routes", []),
+                    base_url=project_obj.base_url,
                     max_scenarios=max_scenarios_to_plan
                 )
                 session_obj.ai_calls_count += 1

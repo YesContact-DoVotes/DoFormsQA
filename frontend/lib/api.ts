@@ -1,5 +1,5 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-export const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+export const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
 
 export interface Project {
   id: number;

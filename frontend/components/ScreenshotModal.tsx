@@ -13,7 +13,7 @@ export function ScreenshotModal({ isOpen, onClose, imageUrl, title }: Screenshot
   if (!isOpen || !imageUrl) return null;
 
   // Prepend backend host if relative URL
-  const fullUrl = imageUrl.startsWith("http") ? imageUrl : `http://localhost:8000${imageUrl}`;
+  const fullUrl = imageUrl.startsWith("http") ? imageUrl : `http://localhost:8080${imageUrl}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">

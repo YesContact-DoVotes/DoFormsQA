@@ -13,26 +13,26 @@ if [ -d "venv" ]; then
     source venv/bin/activate
 fi
 
-# 1. Start Sample Target Web App (Port 3000)
-echo "🌐 [1/3] Serving Sample Target App on http://localhost:3000 ..."
-python3 -m http.server 3000 --directory sample_app &
+# 1. Start Sample Target Web App (Port 3088)
+echo "🌐 [1/3] Serving Sample Target App on http://localhost:3088 ..."
+python3 -m http.server 3088 --directory sample_app &
 SAMPLE_PID=$!
 
-# 2. Start FastAPI Backend (Port 8000)
-echo "🚀 [2/3] Starting FastAPI Backend on http://localhost:8000 ..."
-uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 &
+# 2. Start FastAPI QA Backend (Port 8080)
+echo "🚀 [2/3] Starting FastAPI QA Backend on http://localhost:8080 ..."
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8080 &
 BACKEND_PID=$!
 
-# 3. Start Next.js Frontend (Port 3001)
-echo "💻 [3/3] Starting Next.js UI on http://localhost:3001 ..."
-cd frontend && npm run dev -- -p 3001 &
+# 3. Start Next.js QA Frontend (Port 3090)
+echo "💻 [3/3] Starting Next.js QA UI on http://localhost:3090 ..."
+cd frontend && npm run dev -- -p 3090 &
 FRONTEND_PID=$!
 
 echo "=================================================="
-echo "✅ All services running!"
-echo "   - Frontend UI:  http://localhost:3001"
-echo "   - Backend API:  http://localhost:8000/docs"
-echo "   - Sample App:   http://localhost:3000"
+echo "✅ All QA services running!"
+echo "   - QA Frontend UI:   http://localhost:3090"
+echo "   - QA Backend API:   http://localhost:8080/docs"
+echo "   - Sample App Demo:  http://localhost:3088"
 echo "=================================================="
 echo "Press CTRL+C to stop all servers."
 

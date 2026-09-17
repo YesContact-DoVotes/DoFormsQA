@@ -58,7 +58,12 @@ class QAOrchestrator:
 
     def request_stop(self):
         self._stop_requested = True
-        logger.info("[Session #{}] Stop requested by user", self.session_id)
+        logger.info("[Session #{}] Stop requested by user - closing browser immediately", self.session_id)
+        if self.browser:
+            try:
+                asyncio.create_task(self.browser.close())
+            except Exception:
+                pass
 
     async def run(self):
         """
@@ -432,9 +437,11 @@ class QAOrchestrator:
                     })
 
                 # Stage 5: Bug Verification for Potential Findings
-                if potential_findings:
+                if not self._stop_requested and potential_findings:
                     logger.info("[Session #{}] Running Bug Verification Agent on {} potential finding(s)...", self.session_id, len(potential_findings))
-                for f_item in potential_findings:
+                for f_item in (potential_findings if not self._stop_requested else []):
+                    if self._stop_requested:
+                        break
                     f_item.status = FindingStatus.VERIFYING.value
                     await db.commit()
                     logger.info("[Session #{}] Verifying finding #{}: '{}'...", self.session_id, f_item.id, f_item.title)
@@ -507,32 +514,36 @@ class QAOrchestrator:
                         })
 
                 # Stage 7: Generate Final Report
-                logger.info("[Session #{}] Generating comprehensive Markdown QA report...", self.session_id)
-                all_scenarios_query = await db.execute(select(Scenario).where(Scenario.session_id == self.session_id))
-                all_scenarios = all_scenarios_query.scalars().all()
-                all_findings_query = await db.execute(select(Finding).where(Finding.session_id == self.session_id))
-                all_findings = all_findings_query.scalars().all()
+                if self._stop_requested:
+                    logger.info("[Session #{}] Session was stopped by user; finishing immediately without extra LLM report call.", self.session_id)
+                    final_report_md = f"# QA Session #{self.session_id} - Stopped by user\n\nSession was manually stopped."
+                else:
+                    logger.info("[Session #{}] Generating comprehensive Markdown QA report...", self.session_id)
+                    all_scenarios_query = await db.execute(select(Scenario).where(Scenario.session_id == self.session_id))
+                    all_scenarios = all_scenarios_query.scalars().all()
+                    all_findings_query = await db.execute(select(Finding).where(Finding.session_id == self.session_id))
+                    all_findings = all_findings_query.scalars().all()
 
-                final_report_md = await reporter.generate_markdown_report(
-                    session_data={
-                        "id": self.session_id,
-                        "mission": session_obj.mission,
-                        "status": "COMPLETED",
-                        "actions_used": session_obj.actions_used,
-                        "max_actions": session_obj.max_actions,
-                        "ai_calls_count": session_obj.ai_calls_count,
-                        "estimated_cost": session_obj.estimated_cost
-                    },
-                    scenarios=[{
-                        "title": s.title,
-                        "description": s.description,
-                        "area": s.area,
-                        "status": s.status,
-                        "priority": s.priority
-                    } for s in all_scenarios],
-                    findings=[{
-                        "id": f.id,
-                        "title": f.title,
+                    final_report_md = await reporter.generate_markdown_report(
+                        session_data={
+                            "id": self.session_id,
+                            "mission": session_obj.mission,
+                            "status": "COMPLETED",
+                            "actions_used": session_obj.actions_used,
+                            "max_actions": session_obj.max_actions,
+                            "ai_calls_count": session_obj.ai_calls_count,
+                            "estimated_cost": session_obj.estimated_cost
+                        },
+                        scenarios=[{
+                            "title": s.title,
+                            "description": s.description,
+                            "area": s.area,
+                            "status": s.status,
+                            "priority": s.priority
+                        } for s in all_scenarios],
+                        findings=[{
+                            "id": f.id,
+                            "title": f.title,
                         "description": f.description,
                         "type": f.type,
                         "severity": f.severity,

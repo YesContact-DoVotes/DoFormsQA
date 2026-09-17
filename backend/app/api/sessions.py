@@ -133,14 +133,20 @@ async def stop_session(session_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Session not found")
 
     if session_id in active_orchestrators:
-        active_orchestrators[session_id].request_stop()
-        del active_orchestrators[session_id]
+        orch = active_orchestrators.pop(session_id)
+        orch.request_stop()
+        if orch.browser:
+            try:
+                await orch.browser.close()
+            except Exception:
+                pass
 
     session.status = SessionStatus.COMPLETED.value
+    session.finished_at = datetime.datetime.now(datetime.timezone.utc)
     await db.commit()
 
     await broadcast_session_event("session.stopped", {"session_id": session_id})
-    return {"message": "Session stopped", "session_id": session_id}
+    return {"message": "Session stopped and browser closed", "session_id": session_id}
 
 
 @router.get("/sessions/{session_id}/scenarios", response_model=List[ScenarioResponse])

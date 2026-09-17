@@ -1,9 +1,10 @@
 import asyncio
 import datetime
 import json
-import logging
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -27,8 +28,6 @@ from backend.app.qa.analyzer import ActionAnalyzer
 from backend.app.qa.verifier import BugVerifier
 from backend.app.qa.reporter import ReportGenerator
 from backend.app.qa.regression import RegressionTestGenerator
-
-logger = logging.getLogger("QAOrchestrator")
 
 
 class QAOrchestrator:
@@ -55,25 +54,37 @@ class QAOrchestrator:
                 if asyncio.iscoroutine(res):
                     await res
         except Exception as e:
-            logger.warning(f"Error broadcasting event {event_type}: {e}")
+            logger.warning("[Session #{}] Error broadcasting event {}: {}", self.session_id, event_type, e)
 
     def request_stop(self):
         self._stop_requested = True
+        logger.info("[Session #{}] Stop requested by user", self.session_id)
 
     async def run(self):
         """
         Master execution loop for the QA session.
         """
+        start_time_total = time.time()
+
         async with AsyncSessionLocal() as db:
             session_obj = await db.get(TestSession, self.session_id)
             if not session_obj:
-                logger.error(f"TestSession {self.session_id} not found.")
+                logger.error("[Session #{}] TestSession not found in database.", self.session_id)
                 return
 
             project_obj = await db.get(Project, session_obj.project_id)
             if not project_obj:
-                logger.error(f"Project for session {self.session_id} not found.")
+                logger.error("[Session #{}] Project for session not found.", self.session_id)
                 return
+
+            logger.info(
+                "[Session #{}] Initializing QA run for project '{}' (Target: {}, Mission: '{}', Action budget: {})",
+                self.session_id,
+                project_obj.name,
+                project_obj.base_url,
+                session_obj.mission,
+                session_obj.max_actions
+            )
 
             # Setup session storage
             session_dir = settings.SESSIONS_PATH / f"session-{self.session_id}"
@@ -84,7 +95,10 @@ class QAOrchestrator:
             tests_dir.mkdir(parents=True, exist_ok=True)
 
             # Initialize LLM Provider
-            self.llm = get_llm_provider()
+            if not self.llm:
+                self.llm = get_llm_provider()
+            logger.info("[Session #{}] Using LLM Engine: {}", self.session_id, type(self.llm).__name__)
+
 
             # Initialize Subsystems
             discovery = ApplicationDiscovery(self.llm)
@@ -96,7 +110,7 @@ class QAOrchestrator:
 
             # Update status to PLANNING
             session_obj.status = SessionStatus.PLANNING.value
-            session_obj.started_at = datetime.datetime.utcnow()
+            session_obj.started_at = datetime.datetime.now(datetime.timezone.utc)
             await db.commit()
             await self.emit("session.started", {
                 "session_id": self.session_id,
@@ -106,38 +120,49 @@ class QAOrchestrator:
             })
 
             # Stage 1: Initialize Browser
+            logger.info("[Session #{}] Launching Chromium (Headless={})...", self.session_id, settings.DEFAULT_HEADLESS)
             self.browser = BrowserManager(
                 headless=settings.DEFAULT_HEADLESS,
                 session_storage_dir=session_dir
             )
             await self.browser.initialize()
             verifier = BugVerifier(self.llm, self.browser)
+            logger.info("[Session #{}] Chromium initialized successfully", self.session_id)
 
             try:
                 # Stage 2: Initial Navigation & Application Discovery
+                logger.info("[Session #{}] Navigating to entry URL: {}", self.session_id, project_obj.base_url)
                 nav_result = await self.browser.navigate(project_obj.base_url)
-                initial_state = await self.browser.get_state()
+                logger.info("[Session #{}] Navigation result: {} (HTTP / DOM loaded in {:.1f}ms)", self.session_id, nav_result.get("status"), nav_result.get("duration_ms", 0.0))
 
+                initial_state = await self.browser.get_state()
+                logger.info("[Session #{}] Running Application Discovery Agent...", self.session_id)
                 discovery_data = await discovery.discover(
                     base_url=project_obj.base_url,
                     dom_snapshot=initial_state.get("formatted_dom", ""),
-                    requirements_text=project_obj.requirements_text or ""
+                    requirements_text=project_obj.requirements_text or "",
+                    mission=session_obj.mission
                 )
                 session_obj.ai_calls_count += 1
                 await db.commit()
 
+                discovered_areas = discovery_data.get("areas", [])
+                logger.info("[Session #{}] Discovery completed: {} functional areas identified: {}", self.session_id, len(discovered_areas), [a.get("name") if isinstance(a, dict) else str(a) for a in discovered_areas])
+
                 await self.emit("discovery.completed", {
-                    "areas": discovery_data.get("areas", []),
+                    "areas": discovered_areas,
                     "summary": discovery_data.get("summary", "")
                 })
 
                 # Stage 3: Build Test Plan (Generate Initial Scenarios)
+                max_scenarios_to_plan = min(session_obj.max_actions // 3, 20)
+                logger.info("[Session #{}] Generating test plan (up to {} scenarios)...", self.session_id, max_scenarios_to_plan)
                 planned_scenarios_data = await planner.generate_plan(
                     mission=session_obj.mission,
                     requirements_text=project_obj.requirements_text or "",
-                    discovered_areas=discovery_data.get("areas", []),
+                    discovered_areas=discovered_areas,
                     dom_snapshot=initial_state.get("formatted_dom", ""),
-                    max_scenarios=min(session_obj.max_actions // 3, 20)
+                    max_scenarios=max_scenarios_to_plan
                 )
                 session_obj.ai_calls_count += 1
 
@@ -157,9 +182,12 @@ class QAOrchestrator:
                     created_scenarios.append(sc_model)
                 await db.commit()
 
+                logger.info("[Session #{}] Test plan ready with {} prioritized scenarios", self.session_id, len(created_scenarios))
+
                 # Refresh list
                 for sc in created_scenarios:
                     await db.refresh(sc)
+                    logger.debug("[Session #{}] Scenario #{}: [{}] [{}] {}", self.session_id, sc.id, sc.area, sc.priority, sc.title)
                     await self.emit("scenario.created", {
                         "id": sc.id,
                         "title": sc.title,
@@ -176,12 +204,18 @@ class QAOrchestrator:
 
                 potential_findings: List[Finding] = []
 
-                for scenario in created_scenarios:
+                for idx, scenario in enumerate(created_scenarios):
                     if self._stop_requested or session_obj.actions_used >= session_obj.max_actions:
+                        logger.warning("[Session #{}] Execution loop terminating (stop_requested={}, actions_used={}/{})", self.session_id, self._stop_requested, session_obj.actions_used, session_obj.max_actions)
                         break
+
+                    # Clear analyzer loop history for new scenario
+                    analyzer.clear_history()
 
                     scenario.status = ScenarioStatus.RUNNING.value
                     await db.commit()
+                    logger.info("[Session #{}] ---> Executing Scenario #{}/{} [{}]: '{}'", self.session_id, idx + 1, len(created_scenarios), scenario.area, scenario.title)
+
                     await self.emit("scenario.started", {
                         "id": scenario.id,
                         "title": scenario.title,
@@ -192,6 +226,7 @@ class QAOrchestrator:
                     scenario_finished = False
                     scenario_step_count = 0
                     max_steps_per_scenario = 8
+                    loop_recovery_count = 0
 
                     while not scenario_finished and scenario_step_count < max_steps_per_scenario:
                         if self._stop_requested or session_obj.actions_used >= session_obj.max_actions:
@@ -232,12 +267,39 @@ class QAOrchestrator:
                         # Loop prevention check
                         is_loop = analyzer.check_loop(state.get("url", ""), action_name, target)
                         if is_loop:
+                            loop_recovery_count += 1
+                            if loop_recovery_count > 1:
+                                logger.warning("[Session #{}] Scenario #{} reached max loop recoveries ({}). Concluding scenario.", self.session_id, scenario.id, loop_recovery_count)
+                                scenario_finished = True
+                                scenario.status = ScenarioStatus.PASSED.value
+                                break
+                            logger.warning("[Session #{}] Loop detected for target '{}'. Executing recovery reload.", self.session_id, target)
                             action_name = "reload"
                             target = None
                             thought = "Loop detected (same action repeated 3 times). Reloading page to recover."
 
+                        logger.info(
+                            "[Session #{}] Action [{}/{}]: {} target='{}' val='{}' | Thought: {}",
+                            self.session_id,
+                            session_obj.actions_used,
+                            session_obj.max_actions,
+                            action_name.upper(),
+                            target or "",
+                            value or "",
+                            thought
+                        )
+
+
                         # Execute action in browser
                         exec_result = await self.browser.execute_action(action_name, target, value)
+
+                        logger.info(
+                            "[Session #{}] Result: {} in {:.1f}ms (URL: {})",
+                            self.session_id,
+                            exec_result.get("status"),
+                            exec_result.get("duration_ms", 0.0),
+                            exec_result.get("url", "")
+                        )
 
                         # Capture screenshot for interesting steps or errors
                         screenshot_path_str = None
@@ -246,8 +308,8 @@ class QAOrchestrator:
                             try:
                                 await self.browser.take_screenshot(sc_file)
                                 screenshot_path_str = f"/storage/sessions/session-{self.session_id}/screenshots/{sc_file.name}"
-                            except Exception:
-                                pass
+                            except Exception as sc_err:
+                                logger.debug("[Session #{}] Screenshot capture skipped: {}", self.session_id, sc_err)
 
                         # Save step to DB
                         step_record = TestStep(
@@ -301,8 +363,15 @@ class QAOrchestrator:
                         session_obj.ai_calls_count += 1
 
                         if analysis.get("is_finding"):
+                            logger.warning(
+                                "[Session #{}] ⚠️ Finding detected: [{}] {} - {}",
+                                self.session_id,
+                                analysis.get("severity", "MEDIUM"),
+                                analysis.get("title", ""),
+                                analysis.get("description", "")
+                            )
                             # Take bug screenshot
-                            bug_sc_file = screenshots_dir / f"finding_{scenario.id}_{datetime.datetime.utcnow().timestamp():.0f}.png"
+                            bug_sc_file = screenshots_dir / f"finding_{scenario.id}_{datetime.datetime.now(datetime.timezone.utc).timestamp():.0f}.png"
                             try:
                                 await self.browser.take_screenshot(bug_sc_file)
                                 bug_sc_url = f"/storage/sessions/session-{self.session_id}/screenshots/{bug_sc_file.name}"
@@ -356,15 +425,19 @@ class QAOrchestrator:
                     if not scenario_finished:
                         scenario.status = ScenarioStatus.PASSED.value if not potential_findings else ScenarioStatus.FAILED.value
                     await db.commit()
+                    logger.info("[Session #{}] Scenario #{} completed with status: {}", self.session_id, scenario.id, scenario.status)
                     await self.emit("scenario.completed", {
                         "id": scenario.id,
                         "status": scenario.status
                     })
 
                 # Stage 5: Bug Verification for Potential Findings
+                if potential_findings:
+                    logger.info("[Session #{}] Running Bug Verification Agent on {} potential finding(s)...", self.session_id, len(potential_findings))
                 for f_item in potential_findings:
                     f_item.status = FindingStatus.VERIFYING.value
                     await db.commit()
+                    logger.info("[Session #{}] Verifying finding #{}: '{}'...", self.session_id, f_item.id, f_item.title)
                     await self.emit("finding.verifying", {"id": f_item.id, "title": f_item.title})
 
                     # Run isolated reproduction
@@ -386,6 +459,8 @@ class QAOrchestrator:
                     f_item.status = verify_result.get("status", FindingStatus.CONFIRMED.value)
                     await db.commit()
 
+                    logger.info("[Session #{}] Finding #{} verification outcome: status={}, reproduced={}", self.session_id, f_item.id, f_item.status, f_item.reproduced)
+
                     await self.emit("finding.confirmed" if f_item.reproduced else "finding.rejected", {
                         "id": f_item.id,
                         "title": f_item.title,
@@ -395,6 +470,7 @@ class QAOrchestrator:
 
                     # Stage 6: Generate Playwright Regression Test for Confirmed Bugs
                     if f_item.status == FindingStatus.CONFIRMED.value and f_item.type == FindingType.BUG.value:
+                        logger.info("[Session #{}] Synthesizing Playwright regression test for finding #{}...", self.session_id, f_item.id)
                         reg_data = await regression_gen.generate_playwright_test(
                             finding={
                                 "id": f_item.id,
@@ -422,6 +498,7 @@ class QAOrchestrator:
                         )
                         db.add(reg_record)
                         await db.commit()
+                        logger.info("[Session #{}] Regression test saved: {}", self.session_id, reg_data["name"])
                         await self.emit("regression_test.created", {
                             "id": reg_record.id,
                             "finding_id": f_item.id,
@@ -430,6 +507,7 @@ class QAOrchestrator:
                         })
 
                 # Stage 7: Generate Final Report
+                logger.info("[Session #{}] Generating comprehensive Markdown QA report...", self.session_id)
                 all_scenarios_query = await db.execute(select(Scenario).where(Scenario.session_id == self.session_id))
                 all_scenarios = all_scenarios_query.scalars().all()
                 all_findings_query = await db.execute(select(Finding).where(Finding.session_id == self.session_id))
@@ -475,8 +553,19 @@ class QAOrchestrator:
 
                 session_obj.report_markdown = final_report_md
                 session_obj.status = SessionStatus.COMPLETED.value
-                session_obj.finished_at = datetime.datetime.utcnow()
+                session_obj.finished_at = datetime.datetime.now(datetime.timezone.utc)
                 await db.commit()
+
+                elapsed_total = time.time() - start_time_total
+                logger.info(
+                    "[Session #{}] ✅ QA Session COMPLETED in {:.1f}s (Actions: {}/{}, Scenarios: {}, Confirmed bugs: {})",
+                    self.session_id,
+                    elapsed_total,
+                    session_obj.actions_used,
+                    session_obj.max_actions,
+                    len(all_scenarios),
+                    len([f for f in all_findings if f.status == FindingStatus.CONFIRMED.value])
+                )
 
                 await self.emit("report.generated", {
                     "session_id": self.session_id,
@@ -491,12 +580,13 @@ class QAOrchestrator:
                 })
 
             except Exception as e:
-                logger.exception(f"Fatal error in QA session {self.session_id}: {e}")
+                logger.exception("[Session #{}] ❌ Fatal error in QA session: {}", self.session_id, e)
                 session_obj.status = SessionStatus.FAILED.value
-                session_obj.finished_at = datetime.datetime.utcnow()
+                session_obj.finished_at = datetime.datetime.now(datetime.timezone.utc)
                 await db.commit()
                 await self.emit("session.failed", {"session_id": self.session_id, "error": str(e)})
 
             finally:
                 if self.browser:
+                    logger.info("[Session #{}] Closing Chromium browser context...", self.session_id)
                     await self.browser.close()

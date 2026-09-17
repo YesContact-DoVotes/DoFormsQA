@@ -19,7 +19,7 @@ The AI QA Agent takes any web application URL, a natural-language testing missio
   - **Regression Generator**: Synthesizes standalone Playwright TypeScript (`.spec.ts`) regression tests ready for CI/CD pipelines.
 - 🌐 **Browser Automation (Playwright Chromium)**: Supports interactive headed browser sessions and headless execution.
 - ⚡ **Real-Time Live Dashboard**: WebSocket streaming of executed actions, AI agent thought bubbles, scenario statuses, and findings.
-- 🔌 **LLM Provider Agnostic**: Native support for OpenAI (GPT-4o / GPT-4o-mini / OpenRouter / Ollama), Google Gemini, and a built-in **Mock AI Engine** for offline demo/testing without external API keys.
+- 🔌 **LLM Provider**: Native integration with **OpenAI Codex Sandbox** (`openai-codex`), OpenAI (GPT-4o), and Google Gemini.
 
 ---
 
@@ -31,7 +31,7 @@ DoFormsQA/
 │   ├── app/
 │   │   ├── api/              # REST Endpoints (/projects, /sessions) & WebSockets
 │   │   ├── browser/          # Playwright Manager & DOM Snapshot parser
-│   │   ├── llm/              # LLM Abstraction (OpenAI, Gemini, Mock)
+│   │   ├── llm/              # LLM Abstraction (Codex Sandbox, OpenAI, Gemini)
 │   │   ├── models/           # SQLAlchemy Models (Project, Session, Scenario, Step, Finding, Evidence, RegressionTest)
 │   │   ├── qa/               # Discovery, Planner, Executor, Analyzer, Verifier, Reporter, Orchestrator
 │   │   ├── schemas/          # Pydantic v2 schemas
@@ -126,8 +126,8 @@ cp .env.example .env
 Available options:
 
 ```env
-# Default Provider: mock (offline), openai, gemini
-DEFAULT_LLM_PROVIDER=mock
+# Default Provider: codex, openai, gemini
+DEFAULT_LLM_PROVIDER=codex
 
 # OpenAI / OpenRouter / Ollama
 OPENAI_API_KEY=your_openai_key_here

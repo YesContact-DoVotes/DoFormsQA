@@ -41,3 +41,4 @@ frontend/.turbo/
 *.swo
 .DS_Store
 Thumbs.db
+.playwright-mcp/

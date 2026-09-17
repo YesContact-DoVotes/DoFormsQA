@@ -8,15 +8,22 @@ class ActionAnalyzer:
         self.llm = llm
         self.action_history: List[str] = []
 
+    def clear_history(self):
+        """Clears action history when transitioning to a new scenario."""
+        self.action_history.clear()
+
     def check_loop(self, url: str, action: str, target: Optional[str]) -> bool:
         """
         Calculates action fingerprint and detects if the same action was repeated 3+ times in a row.
+        Resets history on trigger to prevent permanent reload loops.
         """
         fingerprint = f"{url}|{action}|{target or ''}"
         self.action_history.append(fingerprint)
         if len(self.action_history) >= 3:
             last_three = self.action_history[-3:]
             if len(set(last_three)) == 1:
+                # Clear to avoid infinite consecutive loop triggers
+                self.action_history.clear()
                 return True
         return False
 

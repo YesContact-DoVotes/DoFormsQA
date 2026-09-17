@@ -18,13 +18,19 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
         pass  # suppress noisy logs
 
 
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+
 @pytest.mark.asyncio
 async def test_full_autonomous_qa_run():
-    # 1. Start test target web server on port 3088
-    port = 3088
-    httpd = socketserver.TCPServer(("", port), QuietHandler)
+    # 1. Start test target web server on free dynamic port
+    httpd = ReusableTCPServer(("127.0.0.1", 0), QuietHandler)
+    port = httpd.server_address[1]
+
     server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     server_thread.start()
+
 
     try:
         await init_db()
@@ -58,7 +64,10 @@ async def test_full_autonomous_qa_run():
 
         # 3. Run QA Orchestrator
         orchestrator = QAOrchestrator(session_id=session_id, event_broadcaster=event_handler)
+        from backend.app.llm.openai_provider import CodexProvider
+        orchestrator.llm = CodexProvider()
         await orchestrator.run()
+
 
         # 4. Assert Results in DB
         async with AsyncSessionLocal() as db:

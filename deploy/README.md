@@ -35,7 +35,7 @@ docker compose -f deploy/docker-compose.yml up -d --build
 Вы можете настроить параметры в файле `.env` в корне проекта перед сборкой контейнеров:
 
 ```env
-DEFAULT_LLM_PROVIDER=mock   # или openai / gemini
+DEFAULT_LLM_PROVIDER=codex   # или openai / gemini
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=...
 ```

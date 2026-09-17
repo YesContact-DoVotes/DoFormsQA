@@ -24,10 +24,10 @@ class Settings(BaseSettings):
     TESTS_PATH: Path = TESTS_DIR
 
     # LLM Settings
-    DEFAULT_LLM_PROVIDER: str = "openai"  # openai, gemini, anthropic, mock
+    DEFAULT_LLM_PROVIDER: str = "codex"  # codex, openai, gemini, anthropic
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_MODEL: str = "gpt-5.6-luna"
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-1.5-pro"
     ANTHROPIC_API_KEY: str = ""

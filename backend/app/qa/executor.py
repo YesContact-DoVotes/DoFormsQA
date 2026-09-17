@@ -23,7 +23,11 @@ class ActionExecutor:
         """
         system_prompt = """ROLE: EXECUTOR_ROLE
 You are an expert Autonomous Browser Testing Agent.
-Your job is to execute actions to test the given Scenario.
+Your job is to execute actions to test the given Scenario in accordance with the User's Mission.
+
+CRITICAL FOCUS:
+- Keep all interactions strictly focused on the target scenario and user mission.
+- Do not wander off to unrelated sections of the application.
 
 SAFETY GUIDELINES:
 - Never perform destructive production operations (e.g. permanently deleting system account, real credit card transactions). If encountered, set is_completed=true and scenario_result="BLOCKED".

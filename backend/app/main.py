@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -7,16 +8,22 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.app.config import settings
 from backend.app.database import init_db
+from backend.app.logging_config import setup_logging
 from backend.app.api.projects import router as projects_router
 from backend.app.api.sessions import router as sessions_router
 from backend.app.api.websocket import ws_manager
 
+logger = logging.getLogger("main")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database tables
+    setup_logging()
+    logger.info("Initializing QA Agent Database & System Services...")
     await init_db()
+    logger.info("DoForms QA Backend ready and listening.")
     yield
+
 
 
 app = FastAPI(

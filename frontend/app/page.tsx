@@ -2,19 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { 
-  Plus, 
-  Globe, 
-  FileText, 
-  Play, 
-  Trash2, 
-  Layers, 
-  ShieldAlert, 
-  CheckCircle2, 
-  ArrowRight,
-  ExternalLink,
-  Sparkles
-} from "lucide-react";
 import { getProjects, createProject, deleteProject, Project } from "@/lib/api";
 
 const SAMPLE_MVP_REQUIREMENTS = `# DoForms MVP Requirements Specification
@@ -35,7 +22,7 @@ export default function ProjectsPage() {
 
   // Form State
   const [name, setName] = useState("");
-  const [baseUrl, setBaseUrl] = useState("http://localhost:3000");
+  const [baseUrl, setBaseUrl] = useState("");
   const [description, setDescription] = useState("");
   const [requirementsText, setRequirementsText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -95,99 +82,86 @@ export default function ProjectsPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header Banner */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-slate-200 pb-6">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-extrabold tracking-tight text-white">QA Projects</h1>
-            <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-400 border border-blue-500/20">
-              Autonomous
-            </span>
-          </div>
-          <p className="mt-1.5 text-sm text-slate-400 max-w-2xl">
-            Manage web application targets and run autonomous exploratory and E2E testing sessions powered by AI and Playwright.
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Projects</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Manage target applications and run automated exploratory QA sessions.
           </p>
         </div>
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all hover:bg-blue-500 active:scale-95"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-xs transition-all hover:bg-blue-700 active:scale-95 cursor-pointer"
         >
-          <Plus className="h-4 w-4" />
-          Create New Project
+          Create Project
         </button>
       </div>
 
       {/* Projects Grid */}
       {loading ? (
         <div className="mt-12 flex justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
         </div>
       ) : projects.length === 0 ? (
-        <div className="mt-12 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 p-12 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-slate-400">
-            <Layers className="h-6 w-6" />
-          </div>
-          <h3 className="mt-4 text-base font-semibold text-slate-200">No Projects Found</h3>
-          <p className="mt-1 text-sm text-slate-400 max-w-md">
-            Get started by creating your first QA project. Specify your web application URL and optionally add requirements.
+        <div className="mt-12 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
+          <h3 className="text-base font-semibold text-slate-800">No Projects Found</h3>
+          <p className="mt-1 text-sm text-slate-500 max-w-md">
+            Create a QA project to start autonomous exploratory and regression testing.
           </p>
           <button
             onClick={() => {
-              setName("DoForms Web App");
-              setBaseUrl("http://localhost:3000");
-              setDescription("Dynamic form builder and response collection system");
-              setRequirementsText(SAMPLE_MVP_REQUIREMENTS);
+              setName("");
+              setBaseUrl("");
+              setDescription("");
+              setRequirementsText("");
               setIsModalOpen(true);
             }}
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+            className="mt-5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer"
           >
-            <Sparkles className="h-4 w-4" />
-            Create Sample DoForms Project
+            Create New Project
           </button>
         </div>
       ) : (
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
             <Link
               key={project.id}
               href={`/projects/${project.id}`}
-              className="group relative flex flex-col justify-between rounded-2xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-sm transition-all hover:border-blue-500/40 hover:bg-slate-900/90 hover:shadow-xl hover:shadow-blue-500/5"
+              className="group relative flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-xs transition-all hover:border-slate-300 hover:shadow-md"
             >
               <div>
-                <div className="flex items-start justify-between gap-4">
-                  <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="text-base font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                     {project.name}
                   </h3>
                   <button
                     onClick={(e) => handleDelete(e, project.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-all"
+                    className="opacity-0 group-hover:opacity-100 text-xs text-slate-400 hover:text-rose-600 p-1 transition-opacity cursor-pointer"
                     title="Delete Project"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    Delete
                   </button>
                 </div>
 
-                <div className="mt-3 flex items-center gap-2 text-xs font-mono text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-md w-fit">
-                  <Globe className="h-3.5 w-3.5" />
-                  <span className="truncate max-w-[200px]">{project.base_url}</span>
+                <div className="mt-2 text-xs font-mono text-slate-500 truncate">
+                  {project.base_url}
                 </div>
 
                 {project.description && (
-                  <p className="mt-3 text-xs text-slate-400 line-clamp-2">
+                  <p className="mt-2 text-xs text-slate-600 line-clamp-2">
                     {project.description}
                   </p>
                 )}
               </div>
 
-              <div className="mt-6 border-t border-slate-800/80 pt-4 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <Play className="h-3.5 w-3.5 text-slate-500" />
-                  <span>{project.sessions_count || 0} Sessions</span>
-                </div>
+              <div className="mt-5 border-t border-slate-100 pt-3 flex items-center justify-between text-xs">
+                <span className="text-slate-500">
+                  {project.sessions_count || 0} sessions
+                </span>
 
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 group-hover:translate-x-0.5 transition-transform">
-                  View Sessions
-                  <ArrowRight className="h-3.5 w-3.5" />
+                <span className="font-medium text-blue-600">
+                  View &rarr;
                 </span>
               </div>
             </Link>
@@ -197,21 +171,21 @@ export default function ProjectsPage() {
 
       {/* Create Project Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
-            <div className="border-b border-slate-800 px-6 py-4 bg-slate-950 flex items-center justify-between">
-              <h3 className="text-base font-bold text-white">Create New QA Project</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="relative w-full max-w-lg overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+            <div className="border-b border-slate-200 px-5 py-3.5 bg-slate-50 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">Create New Project</h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-700 text-sm cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <form onSubmit={handleCreate} className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Project Name *
                 </label>
                 <input
@@ -220,26 +194,26 @@ export default function ProjectsPage() {
                   placeholder="e.g. DoForms App"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Application Base URL *
                 </label>
                 <input
                   type="url"
                   required
-                  placeholder="http://localhost:3000"
+                  placeholder="http://localhost:3088"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-mono placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Description
                 </label>
                 <input
@@ -247,46 +221,46 @@ export default function ProjectsPage() {
                   placeholder="Brief description of the app"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2 text-sm text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
                     Requirements / PRD (Optional)
                   </label>
                   <button
                     type="button"
                     onClick={() => setRequirementsText(SAMPLE_MVP_REQUIREMENTS)}
-                    className="text-xs text-blue-400 hover:text-blue-300 font-medium"
+                    className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer"
                   >
-                    Auto-fill Sample MVP.md
+                    Auto-fill Sample
                   </button>
                 </div>
                 <textarea
                   rows={4}
-                  placeholder="Paste MVP, PRD, or user stories in Markdown format..."
+                  placeholder="Paste MVP or test requirements in Markdown format..."
                   value={requirementsText}
                   onChange={(e) => setRequirementsText(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2 text-sm text-white font-mono placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 font-mono placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800"
+                  className="rounded-md px-3.5 py-1.5 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-blue-500 disabled:opacity-50"
+                  className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
                 >
-                  {submitting ? "Creating..." : "Create Project"}
+                  {submitting ? "Creating..." : "Create"}
                 </button>
               </div>
             </form>

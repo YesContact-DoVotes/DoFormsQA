@@ -8,7 +8,7 @@ class SessionCreate(BaseModel):
     mission: str = "Conduct full exploratory testing of the application. Test main user flows, negative cases, input validation, navigation, API errors, and UI persistence. Do not stop after the first successful flow."
     max_actions: int = 100
     headless: Optional[bool] = False
-    llm_provider: Optional[str] = "mock"  # openai, gemini, anthropic, mock
+    llm_provider: Optional[str] = "codex"  # codex, openai, gemini, anthropic
     llm_model: Optional[str] = None
 
 

@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, ConsoleMessage, Response
+from loguru import logger
 from backend.app.config import settings
 from backend.app.browser.dom_snapshot import DOMSnapshot, EXTRACT_DOM_JS
 
@@ -58,6 +59,8 @@ class BrowserManager:
             "timestamp": time.time()
         }
         self.console_logs.append(log_entry)
+        if msg.type in ["error", "warning"]:
+            logger.debug("[Browser Console {}] {}", msg.type.upper(), msg.text)
 
     def _handle_pageerror(self, exc):
         log_entry = {
@@ -66,6 +69,7 @@ class BrowserManager:
             "timestamp": time.time()
         }
         self.console_logs.append(log_entry)
+        logger.warning("[Browser Unhandled Error] {}", exc)
 
     def _handle_response(self, response: Response):
         if response.status >= 400:
@@ -76,6 +80,7 @@ class BrowserManager:
                 "method": response.request.method,
                 "timestamp": time.time()
             })
+            logger.warning("[Browser Network Error] {} {} -> HTTP {}", response.request.method, response.url, response.status)
 
     async def navigate(self, url: str) -> Dict[str, Any]:
         """Navigates to the specified URL."""
@@ -84,12 +89,15 @@ class BrowserManager:
         
         start_time = time.time()
         try:
+            logger.debug("[Browser] Navigating to '{}'...", url)
             await self.page.goto(url, wait_until="domcontentloaded", timeout=15000)
             await asyncio.sleep(0.5)  # allow dynamic content to stabilize
             duration_ms = (time.time() - start_time) * 1000
             return {"status": "success", "url": self.page.url, "duration_ms": duration_ms}
         except Exception as e:
+            logger.error("[Browser] Failed navigating to '{}': {}", url, e)
             return {"status": "error", "error": str(e), "url": url}
+
 
     async def execute_action(self, action: str, target: Optional[str] = None, value: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -270,11 +278,11 @@ class BrowserManager:
 
     async def get_state(self) -> Dict[str, Any]:
         """Returns snapshot, URL, title, recent console logs and network errors."""
-        if not self.page:
+        if not self.page or self.page.is_closed():
             return {
                 "url": "",
                 "title": "",
-                "formatted_dom": "Browser not initialized",
+                "formatted_dom": "Browser not initialized or closed",
                 "raw_dom": {},
                 "console_errors": [],
                 "network_errors": []
@@ -283,9 +291,18 @@ class BrowserManager:
         try:
             raw_snapshot = await self.page.evaluate(EXTRACT_DOM_JS)
         except Exception as e:
+            page_url = ""
+            page_title = ""
+            try:
+                if self.page and not self.page.is_closed():
+                    page_url = self.page.url
+                    page_title = await self.page.title()
+            except Exception:
+                pass
+
             raw_snapshot = {
-                "url": self.page.url,
-                "title": await self.page.title() if self.page else "",
+                "url": page_url,
+                "title": page_title,
                 "interactiveElements": [],
                 "textExcerpt": f"Error extracting DOM: {e}"
             }
@@ -300,8 +317,15 @@ class BrowserManager:
 
         relevant_network_errors = self.network_errors[-10:]
 
+        page_url = ""
+        try:
+            if self.page and not self.page.is_closed():
+                page_url = self.page.url
+        except Exception:
+            pass
+
         return {
-            "url": self.page.url,
+            "url": page_url or raw_snapshot.get("url", ""),
             "title": raw_snapshot.get("title", ""),
             "formatted_dom": formatted_dom,
             "raw_dom": raw_snapshot,

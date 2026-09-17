@@ -3,7 +3,7 @@ import asyncio
 from backend.app.database import init_db, AsyncSessionLocal
 from backend.app.models import Project, TestSession, Scenario, TestStep, Finding, Evidence, RegressionTest
 from backend.app.browser.dom_snapshot import DOMSnapshot
-from backend.app.llm.mock_provider import MockProvider
+from backend.app.llm.openai_provider import CodexProvider
 from backend.app.qa.discovery import ApplicationDiscovery
 from backend.app.qa.planner import TestPlanner
 from backend.app.qa.executor import ActionExecutor
@@ -93,7 +93,7 @@ async def test_database_and_models():
 
 @pytest.mark.asyncio
 async def test_llm_and_qa_components():
-    llm = MockProvider()
+    llm = CodexProvider()
 
     # 1. Discovery
     discovery = ApplicationDiscovery(llm)

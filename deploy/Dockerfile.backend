@@ -1,0 +1,28 @@
+# Backend Dockerfile with Playwright and Chromium dependencies
+FROM mcr.microsoft.com/playwright/python:v1.49.0-noble
+
+WORKDIR /app
+
+# Prevent Python from writing .pyc and buffer stdout/stderr
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEFAULT_HEADLESS=true
+
+# Copy requirements and install dependencies
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /app/backend/requirements.txt
+
+# Install Playwright browser
+RUN playwright install chromium
+
+# Copy application code
+COPY backend /app/backend
+COPY sample_app /app/sample_app
+
+# Create storage directories
+RUN mkdir -p /app/storage/sessions /app/storage/generated-tests
+
+EXPOSE 8000
+
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

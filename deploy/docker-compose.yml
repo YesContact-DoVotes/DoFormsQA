@@ -1,0 +1,58 @@
+services:
+  # Backend API & AI QA Orchestrator
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    container_name: doforms-qa-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-mock}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-pro}
+      - DEFAULT_HEADLESS=true
+      - DATABASE_URL=sqlite+aiosqlite:///storage/qa_agent.db
+    volumes:
+      - ../storage:/app/storage
+    networks:
+      - qa-network
+
+  # Next.js Frontend Web Dashboard
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+        - NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
+    container_name: doforms-qa-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    networks:
+      - qa-network
+
+  # Sample Target Web Application (DoForms)
+  sample-app:
+    image: python:3.11-alpine
+    container_name: doforms-sample-app
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ../sample_app:/app
+    command: ["python", "-m", "http.server", "3000"]
+    ports:
+      - "3000:3000"
+    networks:
+      - qa-network
+
+networks:
+  qa-network:
+    driver: bridge

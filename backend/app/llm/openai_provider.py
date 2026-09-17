@@ -12,18 +12,19 @@ class CodexProvider(LLMProvider):
     OpenAI & Codex Sandbox Provider using `openai_codex`.
     Executes prompt interactions via `from openai_codex import Codex` with `with Codex() as codex:`.
     """
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None, effort: Optional[str] = None):
         self.model = model or settings.OPENAI_MODEL or "gpt-5.6-luna"
+        self.effort = effort or getattr(settings, "CODEX_REASONING_EFFORT", "low") or "low"
 
     def _sync_generate(self, system_prompt: str, user_prompt: str, json_mode: bool = False, temperature: float = 0.2) -> LLMResponse:
         system_instr = system_prompt
         if json_mode:
             system_instr += "\nCRITICAL: Respond ONLY with a valid JSON object. No Markdown fences, no explanation text outside the JSON."
 
-        logger.info(f"Invoking Codex Sandbox LLM (model={self.model}, json_mode={json_mode})")
+        logger.info(f"Invoking Codex Sandbox LLM (model={self.model}, effort={self.effort}, json_mode={json_mode})")
         with Codex() as codex:
             thread = codex.thread_start(model=self.model, developer_instructions=system_instr)
-            turn_result = thread.run(user_prompt)
+            turn_result = thread.run(user_prompt, effort=self.effort)
 
             content = turn_result.final_response or ""
             

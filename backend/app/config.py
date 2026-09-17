@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-5.6-luna"
+    CODEX_REASONING_EFFORT: str = "low"
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-1.5-pro"
     ANTHROPIC_API_KEY: str = ""
